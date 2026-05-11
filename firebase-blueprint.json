@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System users and employees",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "position": { "type": "string" },
+        "role": { "type": "string", "enum": ["User", "Admin", "System Admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "position", "role"]
+    },
+    "Budget": {
+      "title": "Mother Budget",
+      "description": "Top-level budget programs",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["name", "description", "totalAmount", "date"]
+    },
+    "SubBudget": {
+      "title": "Sub Budget",
+      "description": "Specific programs under a mother budget",
+      "type": "object",
+      "properties": {
+        "budgetId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "targetDate": { "type": "string", "format": "date" },
+        "venue": { "type": "string" },
+        "packs": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["budgetId", "name", "description", "totalAmount", "targetDate"]
+    },
+    "Item": {
+      "title": "Item",
+      "description": "Office supplies item database",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "uom": { "type": "string" },
+        "qty": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemId", "category", "description", "uom"]
+    },
+    "Delivery": {
+      "title": "Delivery",
+      "description": "Records of received deliveries",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "uom": { "type": "string" },
+        "qty": { "type": "number" },
+        "dateDelivered": { "type": "string", "format": "date" },
+        "orNumber": { "type": "string" },
+        "receivedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemId", "category", "description", "uom", "qty", "dateDelivered"]
+    },
+    "Request": {
+      "title": "Request",
+      "description": "Records of item requests",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "uom": { "type": "string" },
+        "qty": { "type": "number" },
+        "requestedBy": { "type": "string" },
+        "dateRequested": { "type": "string", "format": "date" },
+        "unitDepartment": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Released"] },
+        "releasedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemId", "category", "description", "uom", "qty", "requestedBy", "dateRequested", "unitDepartment"]
+    },
+    "InventoryMovement": {
+      "title": "Inventory Movement",
+      "description": "Tracks stock changes",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "type": { "type": "string", "enum": ["IN", "OUT"] },
+        "qty": { "type": "number" },
+        "referenceId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemId", "type", "qty", "referenceId", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/budgets/{budgetId}": {
+      "schema": "Budget",
+      "description": "Mother budgets"
+    },
+    "/budgets/{budgetId}/programs/{programId}": {
+      "schema": "SubBudget",
+      "description": "Sub budgets or programs"
+    },
+    "/items/{itemId}": {
+      "schema": "Item",
+      "description": "Item inventory"
+    },
+    "/deliveries/{deliveryId}": {
+      "schema": "Delivery",
+      "description": "Delivery records"
+    },
+    "/requests/{requestId}": {
+      "schema": "Request",
+      "description": "Request records"
+    },
+    "/inventory_movements/{movementId}": {
+      "schema": "InventoryMovement",
+      "description": "Historical movements"
+    }
+  }
+}

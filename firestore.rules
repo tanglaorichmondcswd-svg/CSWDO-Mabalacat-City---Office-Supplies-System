@@ -1,0 +1,167 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 0.1 Global Safety Net & Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Admin lookup helper - Refactored for robustness
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'tanglaorichmond.cswd@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'System Admin'])
+      );
+    }
+
+    function isSystemAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'tanglaorichmond.cswd@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'System Admin')
+      );
+    }
+
+    // --- Entity Validations ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'position', 'role', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             (data.uid == request.auth.uid || isSystemAdmin()) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.position is string && data.position.size() > 0 &&
+             data.role in ['User', 'Admin', 'System Admin'] &&
+             data.createdAt == request.time;
+    }
+
+    function isValidBudget(data) {
+      return data.keys().hasAll(['name', 'description', 'totalAmount', 'date', 'createdAt', 'createdBy']) &&
+             data.keys().size() == 6 &&
+             data.name is string && data.name.size() > 0 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.createdAt == request.time &&
+             data.createdBy == request.auth.uid;
+    }
+
+    function isValidSubBudget(data) {
+      return data.keys().hasAll(['budgetId', 'name', 'description', 'totalAmount', 'targetDate', 'createdAt', 'createdBy']) &&
+             data.keys().size() >= 7 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.createdAt == request.time &&
+             data.createdBy == request.auth.uid;
+    }
+
+    function isValidItem(data) {
+      return data.keys().hasAll(['itemId', 'category', 'description', 'uom', 'qty', 'createdAt']) &&
+             data.itemId is string && data.itemId.size() <= 128 &&
+             data.qty is number &&
+             data.createdAt == request.time;
+    }
+
+    function isValidDelivery(data) {
+      return data.keys().hasAll(['itemId', 'category', 'description', 'uom', 'qty', 'dateDelivered', 'orNumber', 'receivedBy', 'createdAt']) &&
+             data.qty is number && data.qty > 0 &&
+             data.createdAt == request.time &&
+             data.receivedBy is string;
+    }
+
+    function isValidRequest(data) {
+      return data.keys().hasAll(['itemId', 'category', 'description', 'uom', 'qty', 'requestedBy', 'dateRequested', 'unitDepartment', 'status', 'createdAt', 'userId']) &&
+             data.qty is number && data.qty > 0 &&
+             data.status in ['Pending', 'Approved', 'Released'] &&
+             data.createdAt == request.time &&
+             data.requestedBy is string &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidMovement(data) {
+      return data.keys().hasAll(['itemId', 'type', 'qty', 'referenceId', 'date']) &&
+             data.type in ['IN', 'OUT'] &&
+             data.qty is number &&
+             data.date == request.time;
+    }
+
+    // --- Match Rules ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidUser(incoming());
+      allow update: if isSignedIn() && (
+        (userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'position'])) ||
+        (isSystemAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'name', 'position']))
+      );
+      allow delete: if isSystemAdmin();
+    }
+
+    match /budgets/{budgetId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidBudget(incoming());
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'totalAmount', 'date']);
+      allow delete: if isSystemAdmin();
+
+      match /programs/{programId} {
+        allow read: if isSignedIn();
+        allow create: if isAdmin() && isValidSubBudget(incoming());
+        allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'totalAmount', 'targetDate', 'venue', 'packs']);
+        allow delete: if isSystemAdmin();
+      }
+    }
+
+    match /items/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidItem(incoming());
+      allow update: if isAdmin() && (
+        // Allow updating metadata OR qty (from deliveries/requests)
+        incoming().diff(existing()).affectedKeys().hasAny(['category', 'description', 'uom', 'qty', 'updatedAt'])
+      );
+      allow delete: if isSystemAdmin();
+    }
+
+    match /deliveries/{deliveryId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isValidDelivery(incoming());
+      allow update: if false; // Deliveries should be immutable
+      allow delete: if isSystemAdmin();
+    }
+
+    match /requests/{requestId} {
+      allow read: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidRequest(incoming());
+      allow update: if isSignedIn() && (
+        (existing().userId == request.auth.uid && existing().status == 'Pending' && incoming().diff(existing()).affectedKeys().hasOnly(['qty', 'description'])) ||
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasAny(['status', 'releasedAt', 'receivedBy']))
+      );
+      allow delete: if isSystemAdmin() || (existing().userId == request.auth.uid && existing().status == 'Pending');
+    }
+
+    match /inventory_movements/{movementId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidMovement(incoming());
+      allow update: if false;
+      allow delete: if isSystemAdmin();
+    }
+  }
+}
