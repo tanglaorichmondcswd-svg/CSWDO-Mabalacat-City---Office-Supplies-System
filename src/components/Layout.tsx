@@ -57,14 +57,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       console.log('LA: onAuthStateChanged triggered:', fbUser ? 'User logged in' : 'User signed out');
       try {
         if (fbUser) {
-          console.log('LA: Fetching user document for', fbUser.uid);
-          const userDoc = await Promise.race([
-            getDoc(doc(db, 'users', fbUser.uid)),
+          console.log('LA: Fetching user document for', fbUser.uid, fbUser.email);
+          let userDoc = await Promise.race([
+            getDoc(doc(db, 'users', (fbUser.email || '').toLowerCase() || fbUser.uid)),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
           ]) as any;
+          
+          if (!userDoc.exists() && fbUser.uid !== fbUser.email) {
+            console.log('LA: Not found by email, trying UID:', fbUser.uid);
+            userDoc = await getDoc(doc(db, 'users', fbUser.uid)) as any;
+          }
           console.log('LA: Fetch complete, exists:', userDoc.exists());
           if (userDoc.exists()) {
             setUser(userDoc.data() as User);
+            // If the document has a different UID than current Auth UID, maybe update? 
+            // For now, just set the user.
           } else {
             console.log('LA: User does not exist');
             if (fbUser.email === 'tanglaorichmond.cswd@gmail.com') {

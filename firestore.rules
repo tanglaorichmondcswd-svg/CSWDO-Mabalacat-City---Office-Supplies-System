@@ -47,10 +47,11 @@ service cloud.firestore {
     // --- Entity Validations ---
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'name', 'position', 'role', 'createdAt']) &&
-             data.keys().size() == 5 &&
+      return data.keys().hasAll(['uid', 'name', 'email', 'position', 'role', 'createdAt']) &&
+             data.keys().size() == 6 &&
              (data.uid == request.auth.uid || isSystemAdmin()) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.email is string && data.email.size() > 0 && 
              data.position is string && data.position.size() > 0 &&
              data.role in ['User', 'Admin', 'System Admin'] &&
              data.createdAt == request.time;
@@ -103,15 +104,22 @@ service cloud.firestore {
              data.date == request.time;
     }
 
-    // --- Match Rules ---
+    function isValidUserUpdate(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.email is string && data.email.size() > 0 && 
+             data.position is string && data.position.size() > 0 &&
+             data.role in ['User', 'Admin', 'System Admin'];
+    }
 
+    // --- Match Rules ---
+    
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow create: if isSignedIn() && isValidUser(incoming());
-      allow update: if isSignedIn() && (
-        (userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'position'])) ||
-        (isSystemAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'name', 'position']))
+      allow create: if isSystemAdmin() || (isSignedIn() && isValidUser(incoming()));
+      allow update: if isSignedIn() && isValidUserUpdate(incoming()) && (
+        (isSystemAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'name', 'email', 'position'])) ||
+        (userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'position']))
       );
       allow delete: if isSystemAdmin();
     }

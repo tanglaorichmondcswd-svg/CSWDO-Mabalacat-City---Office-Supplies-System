@@ -50,8 +50,9 @@ const Users: React.FC = () => {
   const handleAdd = () => {
     setEditingUser(null);
     setFormData({
-      uid: `USER_${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+      uid: '',
       name: '',
+      email: '',
       position: '',
       role: 'User'
     });
@@ -73,17 +74,18 @@ const Users: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const email = formData.email.toLowerCase().trim();
       if (editingUser) {
         await userService.updateUser(editingUser.uid, {
           name: formData.name,
-          email: formData.email,
+          email: email,
           position: formData.position,
           role: formData.role
         });
       } else {
-        await userService.createUser(formData.uid, {
+        await userService.createUser(email, {
           name: formData.name,
-          email: formData.email,
+          email: email,
           position: formData.position,
           role: formData.role
         });
@@ -239,19 +241,7 @@ const Users: React.FC = () => {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6 mt-8 italic">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[0.2em] ml-1">User ID</label>
-                  <input 
-                    required 
-                    readOnly={!!editingUser} 
-                    value={formData.uid} 
-                    onChange={(e) => setFormData({ ...formData, uid: e.target.value })} 
-                    className={`w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3.5 text-sm font-bold text-slate-900 focus:border-brand-accent/30 focus:bg-white focus:outline-none transition-all shadow-inner uppercase ${editingUser ? 'opacity-50 grayscale cursor-not-allowed' : ''}`} 
-                    placeholder="AUTOGEN_UID"
-                  />
-                  {!editingUser && <p className="text-[9px] text-slate-400 font-extrabold tracking-tight uppercase mt-1 ml-1 leading-relaxed">This ID matches the Firebase Auth UID. Change only if necessary.</p>}
-                </div>
-
+                {/* User ID input was removed as it is now implicitly set as the email */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-[0.2em] ml-1">Email</label>
                   <input required type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3.5 text-sm font-black text-slate-900 focus:border-brand-accent/30 focus:bg-white focus:outline-none transition-all shadow-inner italic" placeholder="email@example.com" />
